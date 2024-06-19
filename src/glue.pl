@@ -104,9 +104,9 @@ g( (SG-EG =- M:T), lt(1,P)):-
 % Gamma, T1,T2 |- T 
 % -----------------
 % Gamma, T1*T2 |- T
-g( (SG-EG =- M:T), lt((T1*T2), P)) :-
+g( (SG-EG =- M:T), lt((T1*T2), Proof)) :-
     once((select(P:T1*T2, SG, IG),
-	  g(([fst(P):T1, snd(P):T2 | IG] - EG =- M:T), P)
+	  g(([fst(P):T1, snd(P):T2 | IG] - EG =- M:T), Proof)
 	 )
 	).
 
@@ -178,6 +178,18 @@ simplify(Var\Term, Result):-
           Result = Var\Term1)).
     %Result = Var\Term1.
 
+simplify(fst(X), Y):-
+    simplify(X, X1),
+    once((X1 = (A,_), Y=A; Y=fst(X1))).
+
+simplify(snd(X), Y):-
+    simplify(X, X1),
+    once((X1 = (_,B), Y=B; Y=snd(X1))).
+
+simplify((A,B), (A1,B1)):-
+    simplify(A, A1),
+    simplify(B, B1).
+
 % substitute E for X in Y yielding R.
 substitute(_E, _X, Const, R):-
     functor(Const, _, 0),
@@ -185,6 +197,16 @@ substitute(_E, _X, Const, R):-
 
 substitute(E, X, v(Y), R):-
     once(((X == Y, R=E); R=v(Y) )).
+
+substitute(E, X, fst(Y), fst(Z)):-
+    substitute(E, X, Y, Z).
+
+substitute(E, X, snd(Y), snd(Z)):-
+    substitute(E, X, Y, Z).
+
+substitute(E, X, (A,B), (A1, B1)):-
+    substitute(E, X, A, A1),
+    substitute(E, X, B, B1).
 
 substitute(E, X, A@B, A1@B1):-
     substitute(E, X, A, A1),
