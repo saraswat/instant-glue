@@ -62,20 +62,15 @@
 % 4. TBD: simplification of let's.
 % 5. Changed the representation of meaning terms to make them easier to read.
 
-:- set_prolog_flag(answer_write_options, [quoted(true), portrayed(true), max_depth(100), spacing(next_argument)]).
-:- op(597, xfy, user:( \ )). % lambda abstraction
-:- op(598, yfx, user:( @ )).  % lambda application (in meaning term space)
-:- op(599, xfy, user:( -> )). % linear implication -o
-:- op(649, xfx, user:( =- )). % |- 
 
-
+:- [ops, utils].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% glue(Term, Proof):-
 %% Run the solver for Term, producing in Proof a representation of the proof tree
 
 glue(Term):- glue(Term, _).
-glue( G =- T,Proof ) :-  g( G - [] =- T, Proof ).
+glue( G =- M:T, Proof ) :-  g( G - [] =- M1:T, Proof ), simplify(M1, M).
 
 %%% Main proof procedure
 % g(SG-EG =- Consequent, ProofTree) :-
@@ -104,7 +99,7 @@ g( (SG-EG =- M:T), lt(1,P)):-
 % Gamma, T1,T2 |- T 
 % -----------------
 % Gamma, T1*T2 |- T
-g( (SG-EG =- M:T), lt((T1*T2), Proof)) :-
+g( (SG-EG =- M:T), lt(P, Proof)) :-
     once((select(P:T1*T2, SG, IG),
 	  g(([fst(P):T1, snd(P):T2 | IG] - EG =- M:T), Proof)
 	 )
@@ -113,14 +108,14 @@ g( (SG-EG =- M:T), lt((T1*T2), Proof)) :-
 % Gamma1 |- T1   Gamma2 |- T2 
 % ------------------------------
 % Gamma1, Gamma2 |- T1*T2
-g(( SG-EG =- (M1,M2):T1 * T2), r((T1* T2), P1, P2) ) :-
+g(( SG-EG =- (M1,M2):T1 * T2), r((M1,M2), P1, P2) ) :-
    g( (SG-IG =- M1:T1), P1),
    g( (IG-EG =- M2:T2), P2).
 
 % Gamma, T |- S
 % ----------------
 % Gamma |- T -> S
-g(( SG-EG =- (X\M): T->S), r((T->S), P )) :- 
+g(( SG-EG =- (X\M): T->S), r(X\M, P )) :- 
     %!,
     g( [v(X):T|SG]-EG =- M:S, P),
 
@@ -131,7 +126,7 @@ g(( SG-EG =- (X\M): T->S), r((T->S), P )) :-
 %  Gamma1 |- U  Gamma2, V |- T
 % -------------------------------------------
 % U ->V, Gamma1, Gamma2 |- T 
-g( (SG - EG =- let(X=(A@Um),E):T), lt(T, (U->V),P1,P2)) :-
+g( (SG - EG =- let(X=(A@Um),E):T), lt(let(X=(A@Um), E),P1,P2)) :-
     T \= (_ -> _),
     T \= (_ * _),
     select(A:U->V, SG, IG1),  % select an implication to discharge
@@ -143,102 +138,6 @@ g( (SG - EG =- let(X=(A@Um),E):T), lt(T, (U->V),P1,P2)) :-
     once(subseq(IG2, IG1)),
     g(([v(X):V| IG2]-EG =- E:T), P2).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Auxiliary predicates
-
-identmember(X, [Y|YS]) :- X == Y ; identmember(X, YS).
-
-%% subseq(A, Bs):-
-%% Every element of A exists in Bs. A should be unmodified after this.
-subseq([], _).
-subseq([A|Ar], B):-
-    identmember(A, B),
-    subseq(Ar, B).
-
-%% Simplification of proof terms.
-simplify(v(X), v(X)).
-simplify(A, A):- % constants
-    functor(A, _, 0).
-
-simplify(let(X=E, Target), Result):-
-    simplify(E, E1),
-    simplify(Target, Target1),
-    substitute(E1, X, Target1, Result).
-
-simplify(A@B, Result):-
-    simplify(A, A1),
-    simplify(B, B1),
-    % beta reduction
-    once((A1 = Var\Value, substitute(B1, Var, Value, Result);
-	  Result = A1@B1)).    
-
-simplify(Var\Term, Result):-
-    simplify(Term, Term1),
-    % eta reduction    
-    once((Term = Z@v(Var1), Var1==Var, Result=Z;
-          Result = Var\Term1)).
-    %Result = Var\Term1.
-
-simplify(fst(X), Y):-
-    simplify(X, X1),
-    once((X1 = (A,_), Y=A; Y=fst(X1))).
-
-simplify(snd(X), Y):-
-    simplify(X, X1),
-    once((X1 = (_,B), Y=B; Y=snd(X1))).
-
-simplify((A,B), (A1,B1)):-
-    simplify(A, A1),
-    simplify(B, B1).
-
-% substitute E for X in Y yielding R.
-substitute(_E, _X, Const, R):-
-    functor(Const, _, 0),
-    R = Const.
-
-substitute(E, X, v(Y), R):-
-    once(((X == Y, R=E); R=v(Y) )).
-
-substitute(E, X, fst(Y), fst(Z)):-
-    substitute(E, X, Y, Z).
-
-substitute(E, X, snd(Y), snd(Z)):-
-    substitute(E, X, Y, Z).
-
-substitute(E, X, (A,B), (A1, B1)):-
-    substitute(E, X, A, A1),
-    substitute(E, X, B, B1).
-
-substitute(E, X, A@B, A1@B1):-
-    substitute(E, X, A, A1),
-    substitute(E, X, B, B1).
-     
-substitute(E, X, let(A=B,C), Result):-
-    % Avoid variable capture. Gen a new variable for A
-%    substitute(v(A1), A, C, C1),
-    substitute(B, A, C, C2),
-    substitute(E, X, C2, Result).
-
-substitute(E, X, Y\Term, Y1\Term2):-
-    substitute(v(Y1), Y, Term, Term1), % Generate a new var Y1
-    substitute(E, X, Term1, Term2).
-    
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-pretty_print(Term):-
-     \+ \+ ( numbervars(Term, 0, _, [singletons(true)]),
-            format('~W', [Term, [numbervars(true)]])
-           ),
-     nl.
-
-readings(M,J) :-
-   writeln('Judgement:'), tab(1), pretty_print(J),  % portray_clause(J)
-   writeln('Readings:'), tab(1), J, tab(1), pretty_print(M), fail; true.
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 example(M) :-
  bagof(B,
