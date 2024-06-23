@@ -1,9 +1,35 @@
 :- [ops].
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Auxiliary predicates
+pred(T):-
+    pred1(T), 
+    T \= 1.
 
-identmember(X, [Y|YS]) :- X == Y ; identmember(X, YS).
+pred1(T):-
+    T \= (_ -> _),
+    T \= (_ * _).
 
+identmember(X, S):- identmember(X, S, _).
+identmember(X, [Y|Ys], Ys) :- X == Y.
+identmember(X, [Y|Ys], [Y|Zs]):- X \= Y, identmember(X, Ys, Zs).
+
+identsubset([], []).
+identsubset([], [_|_]).
+identsubset([X|R], S):- identmember(X, S, S1), identsubset(R, S1).
+
+simplify_sequent([], []).
+simplify_sequent([_:1|G], H):- simplify_sequent(G, H).
+simplify_sequent([M:A|G], [M:A|H]):- pred(A), simplify_sequent(G, H).
+
+simplify_sequent([P:A*B|G],[fst(P):A, snd(P):B|H]):- simplify_sequent(G, H).
+simplify_sequent([F:A->B|G],[F:A->B|H]):- simplify_sequent(G, H).
+simplify_sequent([1|G], H):- simplify_sequent(G, H).
+simplify_sequent([A*B|G],[A, B|H]):- simplify_sequent(G, H).
+simplify_sequent([A->B|G],[A->B|H]):- simplify_sequent(G, H).
+simplify_sequent([A|G], [A|H]):-
+    pred(A),
+    simplify_sequent(G, H).
+    
 %% subseq(A, Bs):-
 %% Every element of A exists in Bs. A should be unmodified after this.
 subseq([], _).
@@ -99,3 +125,7 @@ readings(M,J) :-
    writeln('Readings:'), tab(1), J, tab(1), pretty_print(M), fail; true.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+parse(A@(B,C), [A | Rep]):- parse(C, Rep).
+parse(X\Y\A, Rep):- parse(A, Rep).
+parse(loves@_, [loves]).

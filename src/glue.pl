@@ -99,7 +99,7 @@ g( (SG-EG =- M:T), lt(1,P)):-
 % Gamma, T1,T2 |- T 
 % -----------------
 % Gamma, T1*T2 |- T
-g( (SG-EG =- M:T), lt(P, Proof)) :-
+g( (SG-EG =- M:T), lt(T1*T2, Proof)) :-
     once((select(P:T1*T2, SG, IG),
 	  g(([fst(P):T1, snd(P):T2 | IG] - EG =- M:T), Proof)
 	 )
@@ -108,14 +108,14 @@ g( (SG-EG =- M:T), lt(P, Proof)) :-
 % Gamma1 |- T1   Gamma2 |- T2 
 % ------------------------------
 % Gamma1, Gamma2 |- T1*T2
-g(( SG-EG =- (M1,M2):T1 * T2), r((M1,M2), P1, P2) ) :-
+g(( SG-EG =- (M1,M2):T1 * T2), r(T1*T2, P1, P2) ) :-
    g( (SG-IG =- M1:T1), P1),
    g( (IG-EG =- M2:T2), P2).
 
 % Gamma, T |- S
 % ----------------
 % Gamma |- T -> S
-g(( SG-EG =- (X\M): T->S), r(X\M, P )) :- 
+g(( SG-EG =- (X\M): T->S), r(T->S, P )) :- 
     %!,
     g( [v(X):T|SG]-EG =- M:S, P),
 
@@ -126,7 +126,7 @@ g(( SG-EG =- (X\M): T->S), r(X\M, P )) :-
 %  Gamma1 |- U  Gamma2, V |- T
 % -------------------------------------------
 % U ->V, Gamma1, Gamma2 |- T 
-g( (SG - EG =- let(X=(A@Um),E):T), lt(let(X=(A@Um), E),P1,P2)) :-
+g( (SG - EG =- let(X=(A@Um),E):T), lt(U->V,P1,P2)) :-
     T \= (_ -> _),
     T \= (_ * _),
     select(A:U->V, SG, IG1),  % select an implication to discharge
